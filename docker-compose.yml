@@ -1,0 +1,92 @@
+version: "3.7"
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "3002:3002"
+    expose:
+      - 3002
+    volumes:
+      - ./:/app/
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - nw-app
+    container_name: api
+
+  db:
+    image: mysql:5.7
+    platform: linux/x86_64
+    volumes:
+      - data:/var/lib/mysql
+    healthcheck:
+      test:
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=userdb
+    networks:
+      - nw-app
+    ports:
+      - "3306:3306"
+    restart: always
+    container_name: db
+
+  phpmyadmin:
+    image: phpmyadmin
+    ports:
+      - "82:80"
+    expose:
+      - 80
+    networks:
+      - nw-app
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - PMA_HOST=db
+      - PMA_USER=root
+      - PMA_PASSWORD=password
+    depends_on:
+      - db
+    container_name: phpmyadmin
+
+  fe:
+    build: ./fe
+    ports:
+      - "3000:3000"
+    restart: always
+    stdin_open: true
+    volumes:
+      - ./fe:/app
+    networks:
+      - nw-app
+    container_name: fe
+
+  nginx:
+    image: nginx:latest
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    container_name: nginx
+    networks:
+      - nw-app
+    depends_on:
+      api:
+        condition: service_started
+      fe:
+        condition: service_started
+
+volumes:
+  data:
+
+networks:
+  nw-app:
+    driver: bridge
